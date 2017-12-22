@@ -108,83 +108,44 @@ start_command () {
 
     if [[ "$is_stopped" != "0" ]]; then
         echo "Starting the container"
-
-        if [[ "$OSTYPE" =~ ^darwin ]] || [[ "$(uname -r)" =~ Microsoft ]]; then
-            docker-sync start
-            docker-compose -f docker-compose-dev.yml -f docker-compose.yml up -d
-        else
-            docker-compose up -d
-        fi
+        docker-compose up -d
     fi
 }
 
 configure_linux() {
-    echo "Not Implemented" >&2
-    exit 1
+    echo "Creating .env file"
+    echo "$(cat <<EOF
+BASE_PATH_SRC=.
+BASE_PATH_DEST=/opt/project
+DOCKER_COMPOSE_ENV_FILENAME=docker-compose.dev.yml
+XDEBUG_REMOTE_CONNECT_BACK=1
+XDEBUG_REMOTE_HOST=localhost
+
+EOF
+    )" > "$BASE_PATH/.env"
 }
 
 configure_mac() {
-    echo "Not Implemented" >&2
-    exit 1
+    echo "Creating .env file"
+    echo "$(cat <<EOF
+BASE_PATH_SRC=.
+BASE_PATH_DEST=/opt/project
+DOCKER_COMPOSE_ENV_FILENAME=docker-compose.dev.yml
+XDEBUG_REMOTE_CONNECT_BACK=0
+XDEBUG_REMOTE_HOST=docker.for.mac.localhost
+
+EOF
+    )" > "$BASE_PATH/.env"
 }
 
 configure_windows() {
-    echo "Adding private key to the docker parent VM"
-    docker run -it --rm \
-        -e "SSH_PRIVATE_KEY=$(cat "$HOME/.ssh/id_rsa")" \
-        -v /var/run/docker.sock:/var/run/docker.sock \
-        -v /usr/bin/docker:/usr/bin/docker \
-        alpine \
-        sh -c "$(cat <<'EOF1'
-            docker run -it --rm --privileged \
-                -e "SSH_PRIVATE_KEY=$SSH_PRIVATE_KEY" \
-                -v /:/host \
-                alpine \
-                chroot /host sh -c "$(cat <<'EOF2'
-                    if [[ ! -f /root/.ssh/id_rsa ]]; then
-                        mkdir -p /root/.ssh
-                        chmod 700 /root/.ssh
-                        echo "$SSH_PRIVATE_KEY" > /root/.ssh/id_rsa
-                        chmod 600 /root/.ssh/id_rsa
-                    fi
-EOF2
-                )"
-EOF1
-        )"
-
-    if [[ "$(docker plugin ls | grep vieux/sshfs)" == "" ]]; then
-        echo "Installing plugin vieux/sshfs"
-        docker plugin install vieux/sshfs sshkey.source=/root/.ssh/
-    fi
-
-    local project_name=$(basename $BASE_PATH)
-    local volume_name="${project_name}_app_sshfs"
-    local mountpoint=$(docker volume inspect "$volume_name" -f '{{.Mountpoint}}' 2>/dev/null | grep -Ev '^$')
     local host_ip=$(ifconfig eth0 | grep 'inet addr' | cut -d: -f2 | awk '{ print $1 }')
-
-    if [[ "$mountpoint" != "" ]]; then
-        echo "Removing volume $volume_name"
-        docker volume rm -f "$volume_name" >/dev/null
-    fi
-
-    echo "Creating volume $volume_name"
-    docker volume create -d vieux/sshfs \
-        -o "sshcmd=${USER}@${host_ip}:${BASE_PATH}" \
-        -o "idmap=user,uid=$(id -u),gid=$(id -g),allow_other,IdentityFile=/root/.ssh/id_rsa" \
-        "$volume_name" >/dev/null
-
-    mountpoint=$(docker volume inspect "$volume_name" -f '{{.Mountpoint}}' 2>/dev/null)
-    plugin_id=$(docker plugin inspect --format '{{.Id}}' vieux/sshfs)
 
     echo "Creating .env file"
     echo "$(cat <<EOF
-BASE_PATH_SRC=/var/lib/docker/plugins/${plugin_id}/rootfs${mountpoint}
+BASE_PATH_SRC=.
 BASE_PATH_DEST=/opt/project
 DOCKER_COMPOSE_ENV_FILENAME=docker-compose.dev.yml
-DOCKER_COMPOSE_OS_FILENAME=docker-compose.windows.yml
-DOCKER_SYNC_APP_SYNC_EXTERNAL=true
-DOCKER_SYNC_STRATEGY=unison
-DOCKER_SYNC_USERID=$(id -u)
 XDEBUG_REMOTE_CONNECT_BACK=0
 XDEBUG_REMOTE_HOST=$host_ip
 

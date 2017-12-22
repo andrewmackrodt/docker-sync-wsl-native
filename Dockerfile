@@ -86,7 +86,7 @@ RUN [[ "$BUILD_WITH_OPENSSH" != "1" ]] || ( \
     && chmod 700 /home/$BUILD_USER/.ssh \
     && touch /tmp/authorized_keys \
     && chmod 600 /tmp/authorized_keys \
-    && echo $APP_USER_PUBLIC_KEY > /tmp/authorized_keys \
+    && ( [ "$APP_USER_PUBLIC_KEY" == "" ] || echo $APP_USER_PUBLIC_KEY > /tmp/authorized_keys ) \
     && mv /tmp/authorized_keys /home/$BUILD_USER/.ssh/ \
     && chown -R $BUILD_USER:$BUILD_USER /home/$BUILD_USER/.ssh/ \
 )

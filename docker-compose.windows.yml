@@ -1,0 +1,9 @@
+version: "2"
+
+services:
+  app:
+    extends:
+      file: "${DOCKER_COMPOSE_ENV_FILENAME}"
+      service: app
+    volumes:
+      - docker-sync-wsl-native_app_sshfs:/mnt/sshfs:ro

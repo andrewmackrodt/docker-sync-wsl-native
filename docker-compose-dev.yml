@@ -1,0 +1,9 @@
+version: "2"
+
+services:
+  app:
+    volumes:
+      - docker-sync-wsl-native_app_sync:/opt/project:nocopy
+
+volumes:
+  docker-sync-wsl-native_app_sync: { external: true }

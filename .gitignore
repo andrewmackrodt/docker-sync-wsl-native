@@ -1,0 +1,14 @@
+# project ignores
+config/*.php
+laravel/
+vendor/
+docker-compose.override.yml
+!*.dist
+.env
+
+# ide and os ignores
+.docker-sync/
+.idea/
+.vagrant/
+.DS_Store
+Thumbs.db

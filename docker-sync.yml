@@ -1,0 +1,11 @@
+version: "2"
+
+syncs:
+  docker-sync-wsl-native_app_sync:
+    host_disk_mount_mode: cached
+    src: .
+    sync_excludes:
+      - .idea
+      - .git
+    sync_strategy: "${DOCKER_SYNC_STRATEGY}"
+    sync_userid: "${DOCKER_SYNC_USERID}"

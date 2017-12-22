@@ -1,0 +1,11 @@
+version: "2"
+
+services:
+  app:
+    build:
+      context: .
+    working_dir: /opt/project
+    ports:
+      - "8000:8000"
+    volumes:
+      - "${BASE_PATH_SRC}:${BASE_PATH_DEST}"

@@ -1,0 +1,15 @@
+version: "2"
+
+services:
+  app:
+    extends:
+      file: docker-compose.common.yml
+      service: app
+    build:
+      args:
+        BUILD_WITH_OPENSSH: 1
+        BUILD_WITH_XDEBUG: 1
+        XDEBUG_REMOTE_CONNECT_BACK: "${XDEBUG_REMOTE_CONNECT_BACK}"
+        XDEBUG_REMOTE_HOST: "${XDEBUG_REMOTE_HOST}"
+    ports:
+      - "2222:22"

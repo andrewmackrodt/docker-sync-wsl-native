@@ -3,10 +3,5 @@ version: "2"
 services:
   app:
     extends:
-      file: "${DOCKER_COMPOSE_OS_FILENAME}"
+      file: "${DOCKER_COMPOSE_ENV_FILENAME}"
       service: app
-
-volumes:
-  # TODO write a docker-compose.override.yml so that *nix users don't need to create the volume
-  docker-sync-wsl-native_app_sshfs:
-    external: "${DOCKER_SYNC_APP_SYNC_EXTERNAL}"

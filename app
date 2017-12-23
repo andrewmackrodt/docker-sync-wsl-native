@@ -124,8 +124,18 @@ configure_linux() {
 }
 
 configure_mac() {
-    echo "Not Implemented" >&2
-    exit 1
+    echo "Creating .env file"
+    echo "$(cat <<EOF
+BASE_PATH_SRC=.
+BASE_PATH_DEST=/opt/project
+DOCKER_COMPOSE_ENV_FILENAME=docker-compose.dev.yml
+DOCKER_SYNC_STRATEGY=native_osx
+DOCKER_SYNC_USERID=1000
+XDEBUG_REMOTE_CONNECT_BACK=0
+XDEBUG_REMOTE_HOST=docker.for.mac.localhost
+
+EOF
+    )" > "$BASE_PATH/.env"
 }
 
 configure_windows() {
@@ -181,15 +191,15 @@ EOF1
 BASE_PATH_SRC=/var/lib/docker/plugins/${plugin_id}/rootfs${mountpoint}
 BASE_PATH_DEST=/opt/project
 DOCKER_COMPOSE_ENV_FILENAME=docker-compose.dev.yml
-DOCKER_COMPOSE_OS_FILENAME=docker-compose.windows.yml
-DOCKER_SYNC_APP_SYNC_EXTERNAL=true
 DOCKER_SYNC_STRATEGY=unison
-DOCKER_SYNC_USERID=$(id -u)
+DOCKER_SYNC_USERID=1000
 XDEBUG_REMOTE_CONNECT_BACK=0
 XDEBUG_REMOTE_HOST=$host_ip
 
 EOF
-    )" > "$BASE_PATH/.env"
+    )" > "${BASE_PATH}/.env"
+
+    cp "${BASE_PATH}/docker-compose.windows.yml" "${BASE_PATH}/docker-compose.override.yml"
 }
 
 main () {

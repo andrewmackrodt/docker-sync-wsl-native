@@ -2,6 +2,7 @@ FROM php:7.2-zts-alpine
 
 # build arguments
 ARG BUILD_USER=app
+ARG BUILD_UID=1000
 ARG BUILD_WITH_OPENSSH=0
 ARG BUILD_WITH_XDEBUG=0
 ARG XDEBUG_REMOTE_CONNECT_BACK=0
@@ -50,7 +51,7 @@ alias ll='ls -alF'\n\
 alias ls='ls --color=auto'" >> /etc/profile.d/aliases.sh
 
 # add the unprivileged "app" user and allow passwordless sudo
-RUN adduser -D -s /bin/bash $BUILD_USER \
+RUN adduser -D -s /bin/bash -u $BUILD_UID $BUILD_USER \
     && addgroup $BUILD_USER wheel \
     && echo "$BUILD_USER:" | chpasswd \
     && echo -e "# User rules for $BUILD_USER\n$BUILD_USER ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/docker-init

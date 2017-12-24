@@ -128,9 +128,10 @@ configure_mac() {
     echo "$(cat <<EOF
 BASE_PATH_SRC=.
 BASE_PATH_DEST=/opt/project
+BUILD_UID=$(id -u)
 DOCKER_COMPOSE_ENV_FILENAME=docker-compose.dev.yml
 DOCKER_SYNC_STRATEGY=native_osx
-DOCKER_SYNC_USERID=1000
+DOCKER_SYNC_USERID=$(id -u)
 XDEBUG_REMOTE_CONNECT_BACK=0
 XDEBUG_REMOTE_HOST=docker.for.mac.localhost
 
@@ -180,7 +181,7 @@ EOF1
     echo "Creating volume $volume_name"
     docker volume create -d vieux/sshfs \
         -o "sshcmd=${USER}@${host_ip}:${BASE_PATH}" \
-        -o "idmap=user,uid=$(id -u),gid=$(id -g),allow_other,IdentityFile=/root/.ssh/id_rsa" \
+        -o "idmap=user,uid=$(id -u),gid=$(id -u),allow_other,IdentityFile=/root/.ssh/id_rsa" \
         "$volume_name" >/dev/null
 
     mountpoint=$(docker volume inspect "$volume_name" -f '{{.Mountpoint}}' 2>/dev/null)
@@ -190,9 +191,10 @@ EOF1
     echo "$(cat <<EOF
 BASE_PATH_SRC=/var/lib/docker/plugins/${plugin_id}/rootfs${mountpoint}
 BASE_PATH_DEST=/opt/project
+BUILD_UID=$(id -u)
 DOCKER_COMPOSE_ENV_FILENAME=docker-compose.dev.yml
 DOCKER_SYNC_STRATEGY=unison
-DOCKER_SYNC_USERID=1000
+DOCKER_SYNC_USERID=$(id -u)
 XDEBUG_REMOTE_CONNECT_BACK=0
 XDEBUG_REMOTE_HOST=$host_ip
 

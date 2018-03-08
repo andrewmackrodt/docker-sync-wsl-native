@@ -2,21 +2,16 @@
 
 # Installs the application dependencies.
 install_command () {
-    local is_stopped=$(docker-compose ps app | grep -v 'Exit' | grep -q 'docker-php-entrypoint'; echo $?)
+    local start_exit_code=$(start_command -d)
 
-    if [[ "$is_stopped" == "1" ]]; then
-        start_command
-    fi
-
-    docker-compose exec app sh -c "$(cat <<'EOF'
+    exec_command sh -c "
         composer create-project --prefer-dist laravel/laravel laravel
         cd laravel
         composer require barryvdh/laravel-debugbar --dev
         sudo supervisorctl restart app
-EOF
-    )"
+    "
 
-    if [[ "$is_stopped" == "1" ]]; then
+    if [[ "$start_exit_code" -eq 0 ]]; then
         docker-compose down
     fi
 }
@@ -26,7 +21,7 @@ EOF
 #
 
 BASE_PATH=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-IFS=$'\n' read -rd '' -a COMMAND_LIST <<<"$(perl -ne '/^([a-z]+)_command ?\(/ and print "$1\n"' "${BASH_SOURCE[0]}" | sort)"
+IFS=$'\n' read -rd '' -a COMMAND_LIST <<<"$(perl -ne '/^([a-z_-]+)_command ?\(/ and print "$1\n"' "${BASH_SOURCE[0]}")"
 
 # Configures the environment.
 configure_command () {
@@ -41,8 +36,6 @@ configure_command () {
 
 # Executes a shell command in a running container, leave arguments empty to enter a new shell.
 exec_command () {
-    start_command
-
     if [[ "$1" != "" ]]; then
         docker-compose exec app "$@"
     else
@@ -54,32 +47,44 @@ exec_command () {
 help_command () {
     local project_name=$(cd "$(dirname "${BASH_SOURCE[0]}")" && basename $PWD)
     local file_contents=$(<"${BASH_SOURCE[0]}")
+    local base_name=$(basename "${BASH_SOURCE[0]}")
 
     local command
     local text
     local help_text
+    local section
 
     for command in "${COMMAND_LIST[@]}"; do
-        text=$(echo "$file_contents" \
-            | perl -0777 -ne '/((?:^#[^\n]*\n)*)'$command'_command \(/ms and print $1' \
-            | perl -0777 -pe 's/\t/ /g' \
-            | perl -pe 's/^# ?//' \
-            | perl -0777 -pe 's/\n^/\n \t/mg')
+        text=$(echo -e "$file_contents" \
+            | perl -0777 -ne "/^((?:#[^\n]*\n)+)^${command}_command\ ?\(/m and print \$1;" \
+            | perl -pe 's/^[#\t ]+|[#\t ]$//g;' -pe 's/[\t\n]| {2,}/ /g;' \
+            | perl -pe 's/ +$//;' )
         if [[ "$text" == "" ]]; then
             text="No documentation available."
         fi
-        help_text="$help_text\n  \033[32m$command\033[0m\t$text"
+        if [[ "$text" =~ ^\[ ]]; then
+            section=$(echo "$text" | perl -ne '/^\[([^\n\]]+)\]/ and print $1')
+            if [[ "$section" != "" ]]; then
+                text=$(echo "$text" | perl -ne '/\] *(.+)/ and print $1')
+                help_text="$help_text\n"
+                help_text="$help_text\n\033[33m$section:\033[0m"
+            fi
+        fi
+        help_text="$help_text\n  \033[32m${command/_/:}\033[0m\t$text"
 
     done
 
     {
-        echo -e "\033[32m$project_name docker bootstrap\033[0m"
+        echo -e "\033[32m[$project_name] $base_name\033[0m"
         echo ""
         echo -e "\033[33mUsage:\033[0m"
-        echo "  ./$(basename "${BASH_SOURCE[0]}") command [arguments]"
+        echo "  ./$base_name [command=sh] <arguments>"
+        if [[ "$(echo -e "$help_text" | tail -n+2 | head -n1 | grep $'\t')" != "" ]]; then
+            echo ""
+            echo -e "\033[33mCommands:\033[0m"
+        fi
+        echo -e "$help_text" | column -t -s $'\t' | perl -pe 's/^ {7}+//' | perl -pe "s/(\033\[33m)/\n\1/"
         echo ""
-        echo -e "\033[33mAvailable commands:\033[0m"
-        echo -e "$help_text" | column -t -s $'\t' | perl -pe 's/^ {7}+//'
     } >&2
 }
 
@@ -98,29 +103,46 @@ sh_command () {
     if [[ "$1" != "" ]]; then
         run_command bash -lc "$@"
     else
-        run_command bash -l
+        run_command bash -lll
     fi
 }
 
 # Starts containers.
 start_command () {
-    local is_stopped=$(docker-compose ps app | grep -v 'Exit' | grep -q 'docker-php-entrypoint'; echo $?)
-
-    if [[ "$is_stopped" != "0" ]]; then
-        echo "Starting the container"
-
-        if [[ "$OSTYPE" =~ ^darwin ]] || [[ "$(uname -r)" =~ Microsoft ]]; then
-            docker-sync start
-            docker-compose -f docker-compose-dev.yml -f docker-compose.yml up -d
-        else
-            docker-compose up -d
-        fi
+    # exit early if the service is already started
+    if `docker-compose exec app hostname >/dev/null 2>&1`; then
+        return 1
     fi
+
+    if [[ "$OSTYPE" =~ ^darwin ]] || [[ "$(uname -r)" =~ Microsoft ]]; then
+        docker-sync start
+        docker-compose -f docker-compose-dev.yml -f docker-compose.yml up "$@"
+    else
+        docker-compose up "$@"
+    fi
+
+    return 0
+}
+
+# Stops containers.
+stop_command () {
+    docker-compose down
 }
 
 configure_linux() {
-    echo "Not Implemented" >&2
-    exit 1
+    echo "Creating .env file"
+    echo "$(cat <<EOF
+BASE_PATH_SRC=.
+BASE_PATH_DEST=/opt/project
+BUILD_UID=$(id -u)
+DOCKER_COMPOSE_ENV_FILENAME=docker-compose.dev.yml
+DOCKER_SYNC_STRATEGY=native_linux
+DOCKER_SYNC_USERID=$(id -u)
+XDEBUG_REMOTE_CONNECT_BACK=0
+XDEBUG_REMOTE_HOST=localhost
+
+EOF
+    )" > "${DOCKER_PATH}/.env"
 }
 
 configure_mac() {
@@ -144,7 +166,7 @@ configure_windows() {
     docker run -it --rm \
         -e "SSH_PRIVATE_KEY=$(cat "$HOME/.ssh/id_rsa")" \
         -v /var/run/docker.sock:/var/run/docker.sock \
-        -v /usr/bin/docker:/usr/bin/docker \
+        -v /usr/local/bin/docker:/usr/local/bin/docker \
         alpine \
         sh -c "$(cat <<'EOF1'
             docker run -it --rm --privileged \
@@ -163,7 +185,7 @@ EOF2
 EOF1
         )"
 
-    if [[ "$(docker plugin ls | grep vieux/sshfs)" == "" ]]; then
+    if [[ "$(docker plugin inspect vieux/sshfs -f '{{(index .Config.Mounts 1).Source}}' 2>/dev/null)" != "/root/.ssh/" ]]; then
         echo "Installing plugin vieux/sshfs"
         docker plugin install vieux/sshfs sshkey.source=/root/.ssh/
     fi
@@ -171,7 +193,7 @@ EOF1
     local project_name=$(basename $BASE_PATH)
     local volume_name="${project_name}_app_sshfs"
     local mountpoint=$(docker volume inspect "$volume_name" -f '{{.Mountpoint}}' 2>/dev/null | grep -Ev '^$')
-    local host_ip=$(ifconfig eth0 | grep 'inet addr' | cut -d: -f2 | awk '{ print $1 }')
+    local host_ip=docker.for.win.localhost
 
     if [[ "$mountpoint" != "" ]]; then
         echo "Removing volume $volume_name"
@@ -181,7 +203,7 @@ EOF1
     echo "Creating volume $volume_name"
     docker volume create -d vieux/sshfs \
         -o "sshcmd=${USER}@${host_ip}:${BASE_PATH}" \
-        -o "idmap=user,uid=$(id -u),gid=$(id -u),allow_other,IdentityFile=/root/.ssh/id_rsa" \
+        -o "idmap=user,uid=$(id -u),gid=$(id -u),allow_other,IdentityFile=/root/.ssh/id_rsa,ServerAliveInterval=10" \
         "$volume_name" >/dev/null
 
     mountpoint=$(docker volume inspect "$volume_name" -f '{{.Mountpoint}}' 2>/dev/null)
@@ -196,7 +218,7 @@ DOCKER_COMPOSE_ENV_FILENAME=docker-compose.dev.yml
 DOCKER_SYNC_STRATEGY=unison
 DOCKER_SYNC_USERID=$(id -u)
 XDEBUG_REMOTE_CONNECT_BACK=0
-XDEBUG_REMOTE_HOST=$host_ip
+XDEBUG_REMOTE_HOST=docker.for.win.localhost
 
 EOF
     )" > "${BASE_PATH}/.env"
@@ -204,21 +226,28 @@ EOF
     cp "${BASE_PATH}/docker-compose.windows.yml" "${BASE_PATH}/docker-compose.override.yml"
 }
 
+
+#
+# Execute the command(s)
+#
+
 main () {
-    local command=$1
-    local args="${@:2}"
+    local command=${1/:/_}
+    local args=("${@:2}")
 
     if [[ ! " ${COMMAND_LIST[@]} " =~ " $command " ]]; then
         if [[ "$command" != "" ]]; then
-            command=sh
-            args=$@
+            command=run
+            args=("$@")
         else
             command=help
             args=""
         fi
     fi
 
-    "${command}_command" "$args"
+    "${command}_command" "${args[@]}"
 }
 
+pushd "${BASE_PATH}" >/dev/null
 main "$@"
+popd >/dev/null

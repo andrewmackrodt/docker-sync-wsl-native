@@ -26,7 +26,7 @@ method is unproven but gives a glimpse into what may be possible in the future._
         sudo cp bin/wslboot.sh /usr/local/bin
         sudo chmod a+x /usr/local/bin/wslboot.sh
         
-        # generate a private key for openssh and copy it to the eindows desktop
+        # generate a private key for openssh and copy it to the windows desktop
         ssh-keygen
         cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
         chmod 600 ~/.ssh/authorized_keys

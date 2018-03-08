@@ -1,7 +1,6 @@
 FROM php:7.2-zts-alpine
 
 # build arguments
-ARG BUILD_USER=app
 ARG BUILD_UID=1000
 ARG BUILD_WITH_OPENSSH=0
 ARG BUILD_WITH_XDEBUG=0
@@ -51,10 +50,10 @@ alias ll='ls -alF'\n\
 alias ls='ls --color=auto'" >> /etc/profile.d/aliases.sh
 
 # add the unprivileged "app" user and allow passwordless sudo
-RUN adduser -D -s /bin/bash -u $BUILD_UID $BUILD_USER \
-    && addgroup $BUILD_USER wheel \
-    && echo "$BUILD_USER:" | chpasswd \
-    && echo -e "# User rules for $BUILD_USER\n$BUILD_USER ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/docker-init
+RUN adduser -D -s /bin/bash -u $BUILD_UID alpine \
+    && addgroup alpine wheel \
+    && echo "alpine:" | chpasswd \
+    && echo -e "%wheel ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/docker
 
 # configure supervisord to run in the foreground
 RUN sed -E -i "s/^(; ?)?nodaemon=false/nodaemon=true/" /etc/supervisord.conf \
@@ -70,6 +69,7 @@ stdout_logfile=/dev/stdout\n\
 stdout_logfile_maxbytes=0\n\
 stderr_logfile=/dev/stderr\n\
 stderr_logfile_maxbytes=0\n\
+user=alpine\n\
 " >> /etc/supervisord.conf
 
 # configure openssh, while this isn't a usual use-case for docker, connecting via SSH significantly speeds
@@ -83,17 +83,20 @@ RUN [[ "$BUILD_WITH_OPENSSH" != "1" ]] || ( \
 
 # create the .ssh folder in the home directory and write the public key if specified to authorized_keys
 RUN [[ "$BUILD_WITH_OPENSSH" != "1" ]] || ( \
-    mkdir /home/$BUILD_USER/.ssh \
-    && chmod 700 /home/$BUILD_USER/.ssh \
+    mkdir /home/alpine/.ssh \
+    && chmod 700 /home/alpine/.ssh \
     && touch /tmp/authorized_keys \
     && chmod 600 /tmp/authorized_keys \
-    && ( [ "$APP_USER_PUBLIC_KEY" == "" ] || echo $APP_USER_PUBLIC_KEY > /tmp/authorized_keys ) \
-    && mv /tmp/authorized_keys /home/$BUILD_USER/.ssh/ \
-    && chown -R $BUILD_USER:$BUILD_USER /home/$BUILD_USER/.ssh/ \
+    && ( [ "$APP_USER_PUBLIC_KEY" == "" ] || echo $APP_USER_PUBLIC_KEY > /tmp/authorized_keys \
+            && mv /tmp/authorized_keys /home/alpine/.ssh/ \
+       ) \
+    && chown -R alpine:alpine /home/alpine/.ssh/ \
 )
 
-USER $BUILD_USER
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
-WORKDIR /home/$BUILD_USER
+USER alpine
 
-CMD ["sudo", "supervisord", "-c", "/etc/supervisord.conf"]
+WORKDIR /home/alpine
+
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

@@ -12,26 +12,4 @@ set pathname=!pathname:\=/!
 rem set the fully qualified linux path
 set pathname=/!drive!/!pathname!
 
-"%windir%\system32\bash.exe" -c ' ^
-
-/usr/local/bin/wslboot.sh ^
-
-WINDOWS_DRIVE="!drive!" ^
-
-WINDOWS_PATHNAME="!pathname!" ^
-
-if [[ -d "$WINDOWS_PATHNAME" ]]; then ^
-
-    unset WINDOWS_DRIVE # must not have empty line ^
-
-else ^
-
-    WINDOWS_PATHNAME="/mnt/$WINDOWS_PATHNAME" ^
-
-fi ^
-
-cd "$WINDOWS_PATHNAME" 2^>/dev/null ^
-
-bash -l ^
-
-'
+"%windir%\system32\bash.exe" /usr/local/bin/wslboot.sh -c "cd \""%pathname%\"" && exec bash"

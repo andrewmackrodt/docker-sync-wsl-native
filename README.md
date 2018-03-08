@@ -59,7 +59,7 @@ Create a ConEmu Task "Bash::WSL"
         /icon %USERPROFILE%\AppData\Local\lxss\bash.ico
     
     Commands:
-        %LocalAppData%\wsl.bat
+        set "PATH=%ConEmuBaseDirShort%\wsl;%PATH%" & %ConEmuBaseDirShort%\conemu-cyg-64.exe --wsl -cur_console:pnm:/mnt -t /usr/local/bin/wslboot.sh
 
 #### PhpStorm setup
 

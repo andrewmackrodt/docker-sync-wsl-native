@@ -1,9 +1,0 @@
-version: "2"
-
-services:
-  app:
-    volumes:
-      - docker-sync-wsl-native_app_sshfs:/mnt/sshfs:ro
-
-volumes:
-  docker-sync-wsl-native_app_sshfs: { external: true }

@@ -162,56 +162,9 @@ EOF
 }
 
 configure_windows() {
-    echo "Adding private key to the docker parent VM"
-    docker run -it --rm \
-        -e "SSH_PRIVATE_KEY=$(cat "$HOME/.ssh/id_rsa")" \
-        -v /var/run/docker.sock:/var/run/docker.sock \
-        -v /usr/local/bin/docker:/usr/local/bin/docker \
-        alpine \
-        sh -c "$(cat <<'EOF1'
-            docker run -it --rm --privileged \
-                -e "SSH_PRIVATE_KEY=$SSH_PRIVATE_KEY" \
-                -v /:/host \
-                alpine \
-                chroot /host sh -c "$(cat <<'EOF2'
-                    if [[ ! -f /root/.ssh/id_rsa ]]; then
-                        mkdir -p /root/.ssh
-                        chmod 700 /root/.ssh
-                        echo "$SSH_PRIVATE_KEY" > /root/.ssh/id_rsa
-                        chmod 600 /root/.ssh/id_rsa
-                    fi
-EOF2
-                )"
-EOF1
-        )"
-
-    if [[ "$(docker plugin inspect vieux/sshfs -f '{{(index .Config.Mounts 1).Source}}' 2>/dev/null)" != "/root/.ssh/" ]]; then
-        echo "Installing plugin vieux/sshfs"
-        docker plugin install vieux/sshfs sshkey.source=/root/.ssh/
-    fi
-
-    local project_name=$(basename $BASE_PATH)
-    local volume_name="${project_name}_app_sshfs"
-    local mountpoint=$(docker volume inspect "$volume_name" -f '{{.Mountpoint}}' 2>/dev/null | grep -Ev '^$')
-    local host_ip=docker.for.win.localhost
-
-    if [[ "$mountpoint" != "" ]]; then
-        echo "Removing volume $volume_name"
-        docker volume rm -f "$volume_name" >/dev/null
-    fi
-
-    echo "Creating volume $volume_name"
-    docker volume create -d vieux/sshfs \
-        -o "sshcmd=${USER}@${host_ip}:${BASE_PATH}" \
-        -o "idmap=user,uid=$(id -u),gid=$(id -u),allow_other,IdentityFile=/root/.ssh/id_rsa,ServerAliveInterval=10" \
-        "$volume_name" >/dev/null
-
-    mountpoint=$(docker volume inspect "$volume_name" -f '{{.Mountpoint}}' 2>/dev/null)
-    plugin_id=$(docker plugin inspect --format '{{.Id}}' vieux/sshfs)
-
     echo "Creating .env file"
     echo "$(cat <<EOF
-BASE_PATH_SRC=/var/lib/docker/plugins/${plugin_id}/rootfs${mountpoint}
+BASE_PATH_SRC=.
 BASE_PATH_DEST=/opt/project
 BUILD_UID=$(id -u)
 DOCKER_COMPOSE_ENV_FILENAME=docker-compose.dev.yml
@@ -222,8 +175,6 @@ XDEBUG_REMOTE_HOST=docker.for.win.localhost
 
 EOF
     )" > "${BASE_PATH}/.env"
-
-    cp "${BASE_PATH}/docker-compose.windows.yml" "${BASE_PATH}/docker-compose.override.yml"
 }
 
 

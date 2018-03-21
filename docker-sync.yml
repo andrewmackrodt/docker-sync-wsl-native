@@ -5,6 +5,7 @@ syncs:
     host_disk_mount_mode: cached
     src: .
     sync_excludes:
+      - .docker-sync
       - .idea
       - .git
     sync_strategy: "${DOCKER_SYNC_STRATEGY}"
